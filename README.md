@@ -13,14 +13,65 @@ Aspect-Based Sentiment Analysis (ABSA) là nhiệm vụ phân tích cảm xúc t
 So sánh 2 phương pháp:
 
 ### 🔹 Single-Task Learning (STL)
-- Mỗi aspect có một model riêng biệt
-- Ưu điểm: Tập trung cao cho từng aspect
-- Nhược điểm: Không tận dụng được shared knowledge
+**📍 Vị trí trong code**: Lines 82-97 (`STLModel`) và Lines 254-358 (`train_stl_models()`)
+
+**🏗️ Kiến trúc**:
+```python
+class STLModel(nn.Module):
+    def __init__(self, model_name, num_classes, dropout_rate=0.3):
+        self.transformer = AutoModel.from_pretrained(model_name)
+        self.dropout = nn.Dropout(dropout_rate)
+        self.classifier = nn.Linear(self.transformer.config.hidden_size, num_classes)  # MỘT classifier duy nhất
+```
+
+**🔄 Training Process**:
+- **Mỗi aspect có model hoàn toàn riêng biệt**: `for aspect, data in domain_data.items()`
+- **Train tuần tự**: Model cho `texture` → Model cho `smell` → Model cho `price`...
+- **Độc lập hoàn toàn**: Không chia sẻ parameters giữa các aspects
+
+**✅ Ưu điểm**: 
+- Tập trung cao cho từng aspect cụ thể
+- Không bị nhiễu từ aspects khác
+- Dễ debug và tune cho từng task
+
+**❌ Nhược điểm**: 
+- Không tận dụng được shared knowledge
+- Tốn nhiều memory và thời gian (N models cho N aspects)
+- Không học được mối quan hệ giữa các aspects
 
 ### 🔹 Multi-Task Learning (MTL)  
-- Một model chia sẻ cho tất cả aspects trong cùng domain
-- Ưu điểm: Tận dụng shared knowledge giữa các aspects
-- Nhược điểm: Có thể bị nhiễu từ các task khác
+**📍 Vị trí trong code**: Lines 100-117 (`MTLModel`) và Lines 370-525 (`train_mtl_model()`)
+
+**🏗️ Kiến trúc**:
+```python
+class MTLModel(nn.Module):
+    def __init__(self, model_name, aspect_classes, dropout_rate=0.3):
+        # SHARED transformer encoder cho tất cả aspects
+        self.transformer = AutoModel.from_pretrained(model_name)
+        self.dropout = nn.Dropout(dropout_rate)
+        
+        # NHIỀU task-specific classifiers
+        self.classifiers = nn.ModuleDict()
+        for aspect, num_classes in aspect_classes.items():
+            self.classifiers[aspect] = nn.Linear(hidden_size, num_classes)
+```
+
+**🔄 Training Process**:
+- **Một model duy nhất cho tất cả aspects**: `model = MTLModel(self.model_name, aspect_classes)`
+- **Train đồng thời**: Tất cả aspects được học cùng lúc trong mỗi batch
+- **Shared feature extraction**: `shared_features = self.dropout(outputs.pooler_output)`
+- **Multi-task loss**: `total_batch_loss += aspect_loss` cho tất cả aspects
+
+**✅ Ưu điểm**: 
+- Tận dụng shared knowledge giữa các aspects
+- Hiệu quả memory (1 model thay vì N models)
+- Học được correlation giữa các aspects
+- Regularization effect từ multiple tasks
+
+**❌ Nhược điểm**: 
+- Có thể bị nhiễu từ các task khác
+- Khó tune optimal cho từng aspect riêng lẻ
+- Task imbalance có thể ảnh hưởng performance
 
 ## 📁 Cấu trúc dự án
 
@@ -40,6 +91,60 @@ Lab10_1/
 ├── README.md
 ├── requirements.txt
 └── .gitignore
+```
+
+## 🔄 So sánh Architecture STL vs MTL
+
+### 📊 Sự khác biệt chính trong code:
+
+| Aspect | STL | MTL |
+|--------|-----|-----|
+| **Model Class** | `STLModel` | `MTLModel` |
+| **Training Function** | `train_stl_models()` | `train_mtl_model()` |
+| **Number of Models** | N models (1 per aspect) | 1 model (shared) |
+| **Classifier Layer** | `nn.Linear(hidden_size, num_classes)` | `nn.ModuleDict()` với nhiều classifiers |
+| **Forward Output** | `logits` (single tensor) | `logits` (dictionary của tensors) |
+| **Training Loop** | `for aspect in domain_data.items()` | `for aspect in aspect_classes` |
+| **Loss Calculation** | Độc lập cho mỗi aspect | Cộng dồn tất cả aspect losses |
+
+### 🏗️ Architecture Diagram:
+
+```
+STL Architecture:
+[Input Text] → [PhoBERT] → [Classifier_texture] → [Output_texture]
+[Input Text] → [PhoBERT] → [Classifier_smell] → [Output_smell]  
+[Input Text] → [PhoBERT] → [Classifier_price] → [Output_price]
+... (N separate models)
+
+MTL Architecture:
+[Input Text] → [Shared PhoBERT] → [Classifier_texture] → [Output_texture]
+                                ↗ [Classifier_smell] → [Output_smell]
+                                ↗ [Classifier_price] → [Output_price]
+                                ↗ ... (all aspects)
+```
+
+### 🔧 Key Code Differences:
+
+**STL Forward Pass:**
+```python
+def forward(self, input_ids, attention_mask):
+    outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
+    pooled_output = outputs.pooler_output
+    output = self.dropout(pooled_output)
+    logits = self.classifier(output)  # Single output
+    return logits
+```
+
+**MTL Forward Pass:**
+```python
+def forward(self, input_ids, attention_mask):
+    outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
+    shared_features = self.dropout(outputs.pooler_output)  # Shared features
+    
+    logits = {}
+    for aspect in self.classifiers:
+        logits[aspect] = self.classifiers[aspect](shared_features)  # Multiple outputs
+    return logits
 ```
 
 ## 🛠️ Công nghệ sử dụng

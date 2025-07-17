@@ -142,9 +142,9 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📞 Liên hệ
 
-- **Tác giả**: [Tên của bạn]
-- **Email**: [Email của bạn]
-- **GitHub**: [GitHub username]
+- **Tác giả**: Pham Trung Truc
+- **Email**: phamtruc120604@gamil.com
+- **GitHub**: GenTpham
 
 ## 🙏 Acknowledgments
 

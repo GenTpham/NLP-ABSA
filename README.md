@@ -233,18 +233,6 @@ comparison = STL_vs_MTL_Comparison(
 - **VLSP 2018**: Vietnamese Language and Speech Processing Workshop
 - **Cosmetic Dataset**: Dữ liệu review mỹ phẩm tiếng Việt
 
-## 🤝 Đóng góp
-
-1. Fork repository này
-2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`) 
-5. Mở Pull Request
-
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
 ## 📞 Liên hệ
 
 - **Tác giả**: Pham Trung Truc
